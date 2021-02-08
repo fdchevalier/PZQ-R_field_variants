@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: trim_polyphred.sh
-# Version: 0.0
+# Version: 1.0
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2015-06-24
-# Modified in:
+# Modified in: 2021-02-07
 # Licence : GPL v3
 
 
@@ -12,7 +12,7 @@
 # Aims #
 #======#
 
-aim="Read polyphred output file to generate corresponding genotype table that indicates for each sample if the variant is supported by one or both reads."
+aim="Generate a summary table of genotypes, reads and scores for each sample from a polyphred output file."
 
 
 
@@ -20,7 +20,127 @@ aim="Read polyphred output file to generate corresponding genotype table that in
 # Versions #
 #==========#
 
+# v1.0 - 2021-02-07: add functions and options / rewrite input processing / remove temporary files
 # v0.0 - 2015-06-24: creation
+
+version=$(grep -i -m 1 "version" "$0" | cut -d ":" -f 2 | sed "s/^ *//g")
+
+
+
+#===========#
+# Functions #
+#===========#
+
+# Usage message
+function usage {
+    echo -e "
+    \e[32m ${0##*/} \e[00m -i|--input file -o|--output file -p|--positions integer -d|--delimiter value -h|--help
+
+Aim: $aim
+
+Version: $version
+
+Options:
+    -i, --input     path of the polyphred report
+    -o, --output    path of the output file
+    -p, --positions positions within sample names to identify samples uniquely. Must be one or two integers.
+                        - This can be used similarly to the -s option of polyphred.
+                        - If -d is set, positions correspond to field delimitation.
+    -d, --delimiter field delimiter to help identifying samples uniquely
+    -h, --help      this message
+    "
+}
+
+
+# Info message
+function info {
+    if [[ -t 1 ]]
+    then
+        echo -e "\e[32mInfo:\e[00m $1"
+    else
+        echo -e "Info: $1"
+    fi
+}
+
+
+# Warning message
+function warning {
+    if [[ -t 1 ]]
+    then
+        echo -e "\e[33mWarning:\e[00m $1"
+    else
+        echo -e "Warning: $1"
+    fi
+}
+
+
+# Error message
+## usage: error "message" exit_code
+## exit code optional (no exit allowing downstream steps)
+function error {
+    if [[ -t 1 ]]
+    then
+        echo -e "\e[31mError:\e[00m $1"
+    else
+        echo -e "Error: $1"
+    fi
+
+    if [[ -n $2 ]]
+    then
+        exit $2
+    fi
+}
+
+
+# Dependency test
+function test_dep {
+    which $1 &> /dev/null
+    if [[ $? != 0 ]]
+    then
+        error "Package $1 is needed. Exiting..." 1
+    fi
+}
+
+
+# Progress bar
+## Usage: ProgressBar $mystep $myend
+function ProgressBar {
+    if [[ -t 1 ]]
+    then
+        # Process data
+        let _progress=(${1}*100/${2}*100)/100
+        let _done=(${_progress}*4)/10
+        let _left=40-$_done
+        # Build progressbar string lengths
+        _fill=$(printf "%${_done}s")
+        _empty=$(printf "%${_left}s")
+
+        # Build progressbar strings and print the ProgressBar line
+        # Output example:
+        # Progress : [########################################] 100%
+        #printf "\rProgress : [${_fill// /=}${_empty// / }] ${_progress}%%"
+        printf "\r\e[32mProgress:\e[00m [${_fill// /=}${_empty// / }] ${_progress}%%"
+        
+        [[ ${_progress} == 100 ]] && echo ""
+    fi
+}
+
+
+# Clean up function for trap command
+## Usage: clean_up file1 file2 ...
+function clean_up {
+    rm -rf $@
+    echo ""
+    exit 1
+}
+
+
+
+#==============#
+# Dependencies #
+#==============#
+
+test_dep sed
 
 
 
@@ -28,19 +148,38 @@ aim="Read polyphred output file to generate corresponding genotype table that in
 # Variables #
 #===========#
 
-input="$1"
-output="$2"
+set -e
 
-mydate=$(date +%N)
-tmp="/tmp/${input##*/}_$mydate"
+# Options
+while [[ $# -gt 0 ]]
+do
+    case $1 in
+        -i|--input     ) input="$2" ; shift 2 ;;
+        -o|--output    ) output="$2" ; shift 2 ;;
+        -p|--positions ) pos="$2" ; shift 2 
+                           while [[ ! -z "$1" && $(echo "$1"\ | grep -qv "^-" ; echo $?) == 0 ]]
+                           do
+                               pos+="-$1"
+                               shift
+                           done ;; 
+        -d|--delimiter ) delim="$2"    ; shift 2 ;;
+        -h|--help      ) usage ; exit 0 ;;
+        *              ) error "Invalid option: $1\n$(usage)" 1 ;;
+    esac
+done
 
+
+# Check the existence of obligatory options
+[[ -z "$input" ]]  && error "The option input is required. Exiting...\n$(usage)" 1
+[[ -z "$output" ]] && error "The option output is required. Exiting...\n$(usage)" 1
 
 # Check if output exists
-if [[ -e "$output" ]]
-then
-    echo "$output exists. Exiting..."
-    exit 1
-fi
+[[ -e "$output" ]] && error "$output exists. Exiting..." 1
+
+# Check position
+[[ -z "$pos" ]] && pos="1-"
+[[ $(awk -F "-" 'END {print NF}' <<< "$pos") -gt 2 ]] && error "More than two positions entered. Exiting..." 1
+[[ $(sed "s/[-0-9]//g" <<< "$pos" | grep .) ]] && error "Position must be only integer. Exiting..." 1
 
 
 
@@ -48,42 +187,85 @@ fi
 # Processing #
 #============#
 
-# Cleaning polyphred output 
-sed "s/ * /\t/g" "$input" > "$tmp"
+# Trap
+trap "clean_up "$output"" SIGINT SIGTERM    # Clean_up function to remove tmp files
+wait
 
+# Isolating genotype section from polyphred output 
+ppo=$(sed -n "/BEGIN_GENOTYPE/,/END_GENOTYPE/{//d;p}" "$input" | sed "s/ * /\t/g")
 
-# Get the position of the polymorphic sites
-cat "$tmp" | cut -f 1 | sort | uniq | \
-while read site
+# Sites with genotypes
+sites=$(cut -f 1 <<< "$ppo" | sort | uniq)
+
+# Output header
+header="Sample\t"
+for s in $sites
+do
+    s_hd=$(printf "$s-%s\t" GT reads score)
+    header+="$s_hd"
+done
+echo -e "$header" > "$output"
+
+# Listing samples
+if [[ -z "$delim" ]]
+then
+    samples=($(cut -f 4 <<< "$ppo" | cut -c $pos | sort | uniq))
+else
+    samples=($(cut -f 4 <<< "$ppo" | cut -d "$delim" -f $pos | sort | uniq))
+fi
+
+[[ -z "$samples" ]] && error "No sample detected. Exiting..." 1
+
+# Analyzing each sample
+for ((i = 0 ; i < ${#samples[@]} ; i++))
 do
 
-    # Create a tmp file for a given site then read each sample
-    ## NB: sample name is cut to take the most common part between the two reads. Grep uses "." to make the difference between x.1 and x.10 (initial naming is x.1.y and x.10.y)
-    awk -v site="$site" ' $1 == site {print $0}' "$tmp" > "$tmp-a"
-    cut -f 4 "$tmp-a" | cut -d "." -f -3 | sort | uniq | \
-    while read sample
+    # Counter
+    j=$(($i + 1))
+    ProgressBar $j ${#samples[@]} ||
+    
+    sample="${samples[$i]}"
+
+    # Isolate sample specific block 
+    ppo_spl=$(awk -v sample="$sample" ' $4 ~ sample' <<< "$ppo")
+
+    # Output line
+    myline="$sample"
+
+    for s in $sites
     do
-        # Nb of read (forward and reverse or just one of them)
-        nb_read=$(grep -c "$sample\." "$tmp-a")
-
-        # Score (the minimum for a given sample)
-        myscore=$(grep "$sample\." "$tmp-a" | cut -f 7 | sort -n | head -1)
-
-        # Genotype
-        mygt=$(grep "$sample\." "$tmp-a" | cut -f 5-6 | tr "\t" "/")
-        if [[ $(echo "$mygt" | wc -l) == 1 || $(echo "$mygt" | wc -l) == 2 && $(echo "$mygt" | sed -n "1p") == $(echo "$mygt" | sed -n "2p") ]]
+        if $(grep -q "$s" <(cut -f 1 <<< "$ppo_spl"))
         then
-            mygt=$(echo "$mygt" | sed -n "1p")
+            ppo_blk=$(awk -v s=$s '$1 == s' <<< "$ppo_spl" |  grep "$sample")
+
+            # Nb of read (forward and reverse or just one of them)
+            nb_read=$(wc -l <<< "$ppo_blk")
+
+            # Score (the minimum for a given sample)
+            myscore=$(cut -f 7 <<< "$ppo_blk" | sort -n | head -1)
+
+            # Genotype
+            mygt=$(cut -f 5-6 <<< "$ppo_blk" | tr "\t" "/")
+            if [[ $(echo "$mygt" | wc -l) == 1 || $(echo "$mygt" | wc -l) == 2 && $(echo "$mygt" | sed -n "1p") == $(echo "$mygt" | sed -n "2p") ]]
+            then
+                mygt=$(echo "$mygt" | sed -n "1p")
+            else
+                warning "Several genotype detected for sample $sample at site $s. Skipping..."
+                mygt="NA"
+            fi
         else
-            echo "Different genotype for a same sample. Skipping..."
-            mygt=""
+            nb_read="NA"
+            myscore="NA"
+            mygt="NA"
         fi
 
         # Table line
-        myline="$site\t$sample\t$mygt\t$myscore\t$nb_read"
-        echo -e "$myline" >> "$output"
+        myline+="\t$mygt\t$nb_read\t$myscore"
 
     done
 
+    echo -e "$myline" >> "$output"
+
 done
 
+exit
