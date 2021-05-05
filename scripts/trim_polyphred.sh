@@ -1,9 +1,9 @@
 #!/bin/bash
 # Title: trim_polyphred.sh
-# Version: 1.0
+# Version: 1.1
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2015-06-24
-# Modified in: 2021-02-07
+# Modified in: 2021-05-05
 # Licence : GPL v3
 
 
@@ -20,6 +20,7 @@ aim="Generate a summary table of genotypes, reads and scores for each sample fro
 # Versions #
 #==========#
 
+# v1.1 - 2021-05-05: correct bug in trap / correct bug in sort / correct bug in field differences between SNP and indel report
 # v1.0 - 2021-02-07: add functions and options / rewrite input processing / remove temporary files
 # v0.0 - 2015-06-24: creation
 
@@ -188,14 +189,14 @@ done
 #============#
 
 # Trap
-trap "clean_up "$output"" SIGINT SIGTERM    # Clean_up function to remove tmp files
+trap "clean_up \"$output\"" SIGINT SIGTERM    # Clean_up function to remove tmp files
 wait
 
 # Isolating genotype section from polyphred output 
 ppo=$(sed -n "/BEGIN_GENOTYPE/,/END_GENOTYPE/{//d;p}" "$input" | sed "s/ * /\t/g")
 
 # Sites with genotypes
-sites=$(cut -f 1 <<< "$ppo" | sort | uniq)
+sites=$(cut -f 1 <<< "$ppo" | sort -n | uniq)
 
 # Output header
 header="Sample\t"
@@ -206,12 +207,24 @@ do
 done
 echo -e "$header" > "$output"
 
+# Adjust field numbers (differences between indel and SNP)
+if [[ $(sed -n "/BEGIN_COMMAND_LINE/,/END_COMMAND_LINE/{//d;p}" "$input" | grep " -indel ") ]] 
+then
+    spl_fd=3
+    sc_fd=6
+    gt_fd=4-5
+else
+    spl_fd=4
+    sc_fd=7
+    gt_fd=5-6
+fi
+
 # Listing samples
 if [[ -z "$delim" ]]
 then
-    samples=($(cut -f 4 <<< "$ppo" | cut -c $pos | sort | uniq))
+    samples=($(cut -f $spl_fd <<< "$ppo" | cut -c $pos | sort | uniq))
 else
-    samples=($(cut -f 4 <<< "$ppo" | cut -d "$delim" -f $pos | sort | uniq))
+    samples=($(cut -f $spl_fd <<< "$ppo" | cut -d "$delim" -f $pos | sort | uniq))
 fi
 
 [[ -z "$samples" ]] && error "No sample detected. Exiting..." 1
@@ -227,7 +240,7 @@ do
     sample="${samples[$i]}"
 
     # Isolate sample specific block 
-    ppo_spl=$(awk -v sample="$sample" ' $4 ~ sample' <<< "$ppo")
+    ppo_spl=$(awk -v spl_fd=$spl_fd -v sample="$sample" ' $spl_fd ~ sample' <<< "$ppo")
 
     # Output line
     myline="$sample"
@@ -242,10 +255,10 @@ do
             nb_read=$(wc -l <<< "$ppo_blk")
 
             # Score (the minimum for a given sample)
-            myscore=$(cut -f 7 <<< "$ppo_blk" | sort -n | head -1)
+            myscore=$(cut -f $sc_fd <<< "$ppo_blk" | sort -n | head -1)
 
             # Genotype
-            mygt=$(cut -f 5-6 <<< "$ppo_blk" | tr "\t" "/")
+            mygt=$(cut -f $gt_fd <<< "$ppo_blk" | tr "\t" "/")
             if [[ $(echo "$mygt" | wc -l) == 1 || $(echo "$mygt" | wc -l) == 2 && $(echo "$mygt" | sed -n "1p") == $(echo "$mygt" | sed -n "2p") ]]
             then
                 mygt=$(echo "$mygt" | sed -n "1p")
