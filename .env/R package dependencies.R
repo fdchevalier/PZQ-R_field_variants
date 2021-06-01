@@ -14,6 +14,10 @@ install_version("tidyselect", version = "0.2.5",   upgrade = "never")
 install_version("dplyr",      version = "0.8.0",   upgrade = "never")
 
 # Gviz
-install_version("foreign", version = "0.8-76", upgrade = "never")
+install_version("foreign",      version = "0.8-76", upgrade = "never")
 install_version("latticeExtra", version = "0.6-28", upgrade = "never")
 install_bioc("3.9/Gviz", upgrade="never")
+
+# Sushi
+install_version("zoo",    version = "1.8-9", upgrade = "never")
+install_bioc("3.8/Sushi", upgrade="never")
