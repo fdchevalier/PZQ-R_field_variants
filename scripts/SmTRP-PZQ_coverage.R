@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 # Title: SmTRP-PZQ_coverage.R
-# Version: 0.1
+# Version: 0.2
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2021-02-11
-# Modified in: 2021-05-31
+# Modified in: 2021-06-09
 
 
 
@@ -19,6 +19,7 @@
 # Versions #
 #==========#
 
+# v0.2 - 2021-06-09: add high frequency mutations / add new plot layout
 # v0.1 - 2021-05-31: limit plotting to exons
 # v0.0 - 2021-02-11: creation
 
@@ -51,16 +52,29 @@ source("coord_intersect.R")
 # Variables #
 #===========#
 
+cat("Setting variables...\n")
+
 # Folders
 data_fd   <- "../data/"
 graph_fd  <- "../graphs/"
-result_fd <- "../results/2-Coverage/"
+result_fd <- "../results/"
 
-cov_file <- paste0(result_fd, "SmTRP-PZQ.cov")
+cov_file <- paste0(result_fd, "S2-Coverage/mTRP-PZQ.cov")
 
 # GFF file
 mygff.fl <- paste0(data_fd, "genome/schistosoma_mansoni.PRJEA36577.WBPS14.annotations.gff3")
-mygff <- readGFF(mygff.fl)
+mygff    <- readGFF(mygff.fl)
+
+# Variant file
+var_fl <- paste0(result_fd, "1-reports/PZQ-R_field_restrictive2_Smp_246790.5.flt.norm.tsv")
+var    <- read.delim(var_fl)
+
+# High frequency variants
+min_rd <- 25
+min_af <- 0.05
+
+# Resistant mutation
+res_pos <- 737367
 
 # Samples to select
 sel_spl <- c("Sm")
@@ -128,6 +142,16 @@ myrd_bed <- coord_intersect(myrd, mybed)
 lapply(mydata_t_b, function(x) ((x[,-(1:2)] >= mydp) %>% colSums() >= nrow(x) * mycov) %>% sum() ) %>% unlist %>% mean()
 ## Standard error
 (lapply(mydata_t_b, function(x) ((x[,-(1:2)] >= mydp) %>% colSums() >= nrow(x) * mycov) %>% sum() ) %>% unlist %>% sd()) / sqrt(length(mydata_t_b))
+
+
+# Select high frequency variants + resistant variant
+var <- var[var[,4] == "CDS" & var[, 8] != "-", ]
+var <- var[rowSums(var[,9:10]) > min_rd, ]
+var <- var[var[,10] / rowSums(var[,9:10]) > 0.05 | var[,1] == res_pos, 1:10]
+
+# Select exon variants
+var2   <- cbind("SM_V7_3", var)
+var2_b <- coord_intersect(var2, mybed)
 
 
 
@@ -211,7 +235,7 @@ dev.off()
 
 
 # Alternative exon version
-png(paste0(graph_fd, "SmTRP-coverage_exons.png"), width=50*72, height=10*72)
+png(paste0(graph_fd, "SmTRP-coverage_exons1.png"), width=25*72, height=5*72)
 
 myclr <- rainbow(nrow(mybed))
 set.seed(myseed)
@@ -230,10 +254,88 @@ for (e in 1:length(myrd_bed)) {
     mypos2 <- nrow(myrd_bed[[e]]) + mypos1 - 1
     mypos_tmp <- mypos1:mypos2
 
-    points(myrd_bed[[e]][, 3] ~ mypos_tmp, pch = 20, col = myclr[e])
+    # points(myrd_bed[[e]][, 3] ~ mypos_tmp, pch = 20, col = myclr[e])
+    lines(myrd_bed[[e]][, 3] ~ mypos_tmp, pch = 20, col = myclr[e])
 
     rect(mypos1, -10-my.y, mypos2, -10+my.y, col=myclr[e], border=NA)
     if (e < length(myrd_bed)) { abline(v = mypos2, lty = 3) }
+
+    if (dim(var2_b[[e]])[1] > 0) {
+        for (v in var2_b[[e]][,2]) {
+            v <- which(myrd_bed[[e]][, 2] == v) + mypos1 - 1
+            rect(v-10, -10-my.y, v+10, -10+my.y, col="red", border=NA)
+        }
+    }
+}
+
+dev.off()
+
+
+# Alternative exon version on two rows
+# png(paste0(graph_fd, "SmTRP-coverage_exons_v2.png"), width=25*72, height=5*72)
+pdf(paste0(graph_fd, "SmTRP-coverage_exons_v2.pdf"), width = 15, height = 8)
+
+layout(matrix(1:2, ncol = 1))
+
+myclr <- rainbow(nrow(mybed))
+set.seed(myseed)
+#myclr <- sample(myclr, length(myclr))
+myclr <- rep("grey", length(myclr))
+
+# Point graph
+gene_lg1 <- lapply(myrd_bed[1:floor(length(myrd_bed)/2)], function(x) nrow(x)) %>% unlist() %>% sum()
+gene_lg2 <- lapply(myrd_bed[1:length(myrd_bed)], function(x) nrow(x)) %>% unlist() %>% sum()
+
+plot(NULL, xlab = "", ylab = "Read depth", ylim = c(-10, max(myrd[, 3])), xlim = c(1, gene_lg1), xaxt = "n", bty = "n") # log = "y", axes = FALSE)
+# my.y <- par("usr")[4]*0.2
+my.y <- -10 * 0.2
+
+mypos2 <- 1
+for (e in 1:floor(length(myrd_bed)/2)) {
+    mypos1 <- mypos2
+    mypos2 <- nrow(myrd_bed[[e]]) + mypos1 - 1
+    mypos_tmp <- mypos1:mypos2
+
+    # points(myrd_bed[[e]][, 3] ~ mypos_tmp, pch = 20, col = myclr[e])
+    lines(myrd_bed[[e]][, 3] ~ mypos_tmp, pch = 20, col = myclr[e])
+
+    rect(mypos1, -10-my.y, mypos2, -10+my.y, col=myclr[e], border=NA)
+    if (e < length(myrd_bed)) { abline(v = mypos2, lty = 3) }
+
+    if (dim(var2_b[[e]])[1] > 0) {
+        for (v in var2_b[[e]][,2]) {
+            if (v == res_pos) { mybx_clr <- "red" } else {mybx_clr <- "black" }
+            v <- which(myrd_bed[[e]][, 2] == v) + mypos1 - 1
+            rect(v-10, -10-my.y, v+10, -10+my.y, col=mybx_clr, border=NA)
+        }
+    }
+
+    # Add exon number
+    text(mean(mypos_tmp), par("usr")[4]*1.15, labels = e, xpd = TRUE)
+}
+
+plot(NULL, xlab = "", ylab = "Read depth", ylim = c(-10, max(myrd[, 3])), xlim = c(gene_lg1, gene_lg2), xaxt = "n", bty = "n") # log = "y", axes = FALSE)
+mypos2 <- gene_lg1
+for (e in ceiling(length(myrd_bed)/2):length(myrd_bed)) {
+    mypos1 <- mypos2
+    mypos2 <- nrow(myrd_bed[[e]]) + mypos1 - 1
+    mypos_tmp <- mypos1:mypos2
+
+    # points(myrd_bed[[e]][, 3] ~ mypos_tmp, pch = 20, col = myclr[e])
+    lines(myrd_bed[[e]][, 3] ~ mypos_tmp, pch = 20, col = myclr[e])
+
+    rect(mypos1, -10-my.y, mypos2, -10+my.y, col=myclr[e], border=NA)
+    if (e < length(myrd_bed)) { abline(v = mypos2, lty = 3) }
+
+    if (dim(var2_b[[e]])[1] > 0) {
+        for (v in var2_b[[e]][,2]) {
+            v <- which(myrd_bed[[e]][, 2] == v) + mypos1 - 1
+            rect(v-10, -10-my.y, v+10, -10+my.y, col="black", border=NA)
+        }
+    }
+    
+    # Add exon number
+    text(mean(mypos_tmp), par("usr")[4]*1.15, labels = e, xpd = TRUE)
 }
 
 dev.off()
