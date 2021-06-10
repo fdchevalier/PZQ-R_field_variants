@@ -2,7 +2,7 @@ from __future__ import print_function
 import os
 import pandas as pd
 
-LIB_FD = "data/libraries/1-Sm/"
+LIB_FD = "data/libraries/"
 GENOME = "data/genome/schistosoma_mansoni.PRJEA36577.WBPS14.genomic.fa"
 SAMPLES = os.listdir(LIB_FD)
 CONTIGS = pd.read_table(GENOME + ".fai", header=None, usecols=[0], squeeze=True, dtype=str)
