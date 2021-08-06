@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 # Title: SmTRP-PZQ_coverage.R
-# Version: 0.2
+# Version: 0.3
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2021-02-11
-# Modified in: 2021-06-09
+# Modified in: 2021-08-06
 
 
 
@@ -19,6 +19,7 @@
 # Versions #
 #==========#
 
+# v0.3 - 2021-08-06: improve plot
 # v0.2 - 2021-06-09: add high frequency mutations / add new plot layout
 # v0.1 - 2021-05-31: limit plotting to exons
 # v0.0 - 2021-02-11: creation
@@ -59,7 +60,7 @@ data_fd   <- "../data/"
 graph_fd  <- "../graphs/"
 result_fd <- "../results/"
 
-cov_file <- paste0(result_fd, "S2-Coverage/mTRP-PZQ.cov")
+cov_file <- paste0(result_fd, "2-coverage/SmTRP-PZQ.cov")
 
 # GFF file
 mygff.fl <- paste0(data_fd, "genome/schistosoma_mansoni.PRJEA36577.WBPS14.annotations.gff3")
@@ -272,15 +273,14 @@ dev.off()
 
 
 # Alternative exon version on two rows
-# png(paste0(graph_fd, "SmTRP-coverage_exons_v2.png"), width=25*72, height=5*72)
-pdf(paste0(graph_fd, "SmTRP-coverage_exons_v2.pdf"), width = 15, height = 8)
+pdf(paste0(graph_fd, "SmTRP-coverage_exons_v2.pdf"), width = 17, height = 8)
+
+par(mar = c(5, 4, 4, 0) + 0.1)
 
 layout(matrix(1:2, ncol = 1))
 
-myclr <- rainbow(nrow(mybed))
-set.seed(myseed)
-#myclr <- sample(myclr, length(myclr))
 myclr <- rep("grey", length(myclr))
+mycex <- 0.85
 
 # Point graph
 gene_lg1 <- lapply(myrd_bed[1:floor(length(myrd_bed)/2)], function(x) nrow(x)) %>% unlist() %>% sum()
@@ -303,10 +303,12 @@ for (e in 1:floor(length(myrd_bed)/2)) {
     if (e < length(myrd_bed)) { abline(v = mypos2, lty = 3) }
 
     if (dim(var2_b[[e]])[1] > 0) {
-        for (v in var2_b[[e]][,2]) {
-            if (v == res_pos) { mybx_clr <- "red" } else {mybx_clr <- "black" }
-            v <- which(myrd_bed[[e]][, 2] == v) + mypos1 - 1
-            rect(v-10, -10-my.y, v+10, -10+my.y, col=mybx_clr, border=NA)
+        var_tmp <- var2_b[[e]]
+        for (l in 1:nrow(var_tmp)) {
+            if (var_tmp[l, 2] == res_pos) { mybx_clr <- "red" } else {mybx_clr <- "black" }
+            v <- which(myrd_bed[[e]][, 2] == var_tmp[l, 2]) + mypos1 - 1
+            rect(v-10, -10-my.y, v+10, -10+my.y, col = mybx_clr, border = NA)
+            text(v, -20-my.y, labels = var_tmp[l, 9], adj = 1, srt = 90, cex = mycex, xpd = TRUE)
         }
     }
 
@@ -328,9 +330,12 @@ for (e in ceiling(length(myrd_bed)/2):length(myrd_bed)) {
     if (e < length(myrd_bed)) { abline(v = mypos2, lty = 3) }
 
     if (dim(var2_b[[e]])[1] > 0) {
-        for (v in var2_b[[e]][,2]) {
-            v <- which(myrd_bed[[e]][, 2] == v) + mypos1 - 1
-            rect(v-10, -10-my.y, v+10, -10+my.y, col="black", border=NA)
+        var_tmp <- var2_b[[e]]
+        for (l in 1:nrow(var_tmp)) {
+            if (var_tmp[l, 2] == res_pos) { mybx_clr <- "red" } else {mybx_clr <- "black" }
+            v <- which(myrd_bed[[e]][, 2] == var_tmp[l, 2]) + mypos1 - 1
+            rect(v-10, -10-my.y, v+10, -10+my.y, col = mybx_clr, border = NA)
+            text(v, -20-my.y, labels = var_tmp[l, 9], adj = 1, srt = 90, cex = mycex, xpd = TRUE)
         }
     }
     
