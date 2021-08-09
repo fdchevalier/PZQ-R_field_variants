@@ -21,3 +21,7 @@ install_bioc("3.9/Gviz", upgrade="never")
 # Sushi
 install_version("zoo",    version = "1.8-9", upgrade = "never")
 install_bioc("3.8/Sushi", upgrade="never")
+
+# SVG
+install_version("rsvg",      version = "2.1.2", upgrade = "never")
+install_version("grImport2", version = "0.2-0", upgrade = "never")
