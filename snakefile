@@ -18,7 +18,6 @@ rule all:
         expand(LIB_FD + "{sample}/{sample}_sorted_MD_recal.bam", sample=SAMPLES),
         expand(LIB_FD + "{sample}/{sample}_sorted_MD_recal.bam.bai", sample=SAMPLES),
         expand(LIB_FD + "{sample}/{sample}_sorted_MD_recal.flagstat", sample=SAMPLES),
-        expand(LIB_FD + "{sample}/{sample}_sorted_MD.flagstat", sample=SAMPLES),
         expand(LIB_FD + "{sample}/{sample}_Z.cov", sample=SAMPLES),
         expand(LIB_FD + "{sample}/{sample}_Z.sex", sample=SAMPLES),
         expand(LIB_FD + "{sample}/{sample}_SmTRP-PZQ.cov", sample=SAMPLES)
