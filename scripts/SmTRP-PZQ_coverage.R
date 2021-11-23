@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 # Title: SmTRP-PZQ_coverage.R
-# Version: 0.4
+# Version: 0.5
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2021-02-11
-# Modified in: 2021-08-08
+# Modified in: 2021-11-23
 
 
 
@@ -19,6 +19,7 @@
 # Versions #
 #==========#
 
+# v0.5 - 2021-11-23: correct file path
 # v0.4 - 2021-08-08: add panel B / clean code
 # v0.3 - 2021-08-06: improve plot
 # v0.2 - 2021-06-09: add high frequency mutations / add new plot layout
@@ -71,7 +72,7 @@ mygff.fl <- paste0(data_fd, "genome/schistosoma_mansoni.PRJEA36577.WBPS14.annota
 mygff    <- readGFF(mygff.fl)
 
 # Variant file
-var_fl <- paste0(result_fd, "1-reports/PZQ-R_field_restrictive2_Smp_246790.5.flt.norm.tsv")
+var_fl <- paste0(result_fd, "1-reports/PZQ-R_field_stringent_Smp_246790.5.flt.norm.tsv")
 var    <- read.delim(var_fl)
 
 svg_fl <- paste0(graph_fd, "Sm.TRPM_PZQ structure + mutation.svg")
