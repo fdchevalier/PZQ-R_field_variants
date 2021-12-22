@@ -1,5 +1,7 @@
 # Analysis of natural variations in *Sm.TRPM<sub>PZQ</sub>* from field *Schistosoma mansoni* samples 
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5297221.svg)](https://doi.org/10.5281/zenodo.5297221)
+
 This repository contains the notebook and scripts used to analyze the Sm.TRPM<sub>PZQ</sub> gene from field *Schisotosoma mansoni* samples. Sm.TRPM<sub>PZQ</sub> (Smp\_246790) is strongly suspected to be the target of praziquantel (PZQ) as demonstrated by our genetic analysis and the [pharmacological approach](https://doi.org/10.1101/2021.03.09.434291) from Jonathan Marchant laboratory. Identification of natural variations in this gene is critical to better understand PZQ resistance and inform mass drug administration program. This analysis is part of the work described in [Genetic analysis of praziquantel response in schistosome parasites implicates a Transient Receptor Potential channel](https://doi.org/10.1101/2021.06.09.447779). 
 
 ## Abstract
