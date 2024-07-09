@@ -1,10 +1,10 @@
 #!/bin/bash
 # Title: trim_polyphred.sh
-# Version: 1.1
+# Version: 1.2
 # Author: Frédéric CHEVALIER <fcheval@txbiomed.org>
 # Created in: 2015-06-24
-# Modified in: 2021-05-05
-# Licence : GPL v3
+# Modified in: 2024-07-09
+# License: GPL v3
 
 
 
@@ -20,6 +20,7 @@ aim="Generate a summary table of genotypes, reads and scores for each sample fro
 # Versions #
 #==========#
 
+# v1.2 - 2024-07-09: correct bug with the progress bar / improve speed
 # v1.1 - 2021-05-05: correct bug in trap / correct bug in sort / correct bug in field differences between SNP and indel report
 # v1.0 - 2021-02-07: add functions and options / rewrite input processing / remove temporary files
 # v0.0 - 2015-06-24: creation
@@ -121,7 +122,7 @@ function ProgressBar {
         # Progress : [########################################] 100%
         #printf "\rProgress : [${_fill// /=}${_empty// / }] ${_progress}%%"
         printf "\r\e[32mProgress:\e[00m [${_fill// /=}${_empty// / }] ${_progress}%%"
-        
+
         [[ ${_progress} == 100 ]] && echo ""
     fi
 }
@@ -157,12 +158,12 @@ do
     case $1 in
         -i|--input     ) input="$2" ; shift 2 ;;
         -o|--output    ) output="$2" ; shift 2 ;;
-        -p|--positions ) pos="$2" ; shift 2 
+        -p|--positions ) pos="$2" ; shift 2
                            while [[ ! -z "$1" && $(echo "$1"\ | grep -qv "^-" ; echo $?) == 0 ]]
                            do
                                pos+="-$1"
                                shift
-                           done ;; 
+                           done ;;
         -d|--delimiter ) delim="$2"    ; shift 2 ;;
         -h|--help      ) usage ; exit 0 ;;
         *              ) error "Invalid option: $1\n$(usage)" 1 ;;
@@ -192,7 +193,7 @@ done
 trap "clean_up \"$output\"" SIGINT SIGTERM    # Clean_up function to remove tmp files
 wait
 
-# Isolating genotype section from polyphred output 
+# Isolating genotype section from polyphred output
 ppo=$(sed -n "/BEGIN_GENOTYPE/,/END_GENOTYPE/{//d;p}" "$input" | sed "s/ * /\t/g")
 
 # Sites with genotypes
@@ -205,10 +206,10 @@ do
     s_hd=$(printf "$s-%s\t" GT reads score)
     header+="$s_hd"
 done
-echo -e "$header" > "$output"
+mytable="$header"
 
 # Adjust field numbers (differences between indel and SNP)
-if [[ $(sed -n "/BEGIN_COMMAND_LINE/,/END_COMMAND_LINE/{//d;p}" "$input" | grep " -indel ") ]] 
+if [[ $(sed -n "/BEGIN_COMMAND_LINE/,/END_COMMAND_LINE/{//d;p}" "$input" | grep " -indel ") ]]
 then
     spl_fd=3
     sc_fd=6
@@ -235,11 +236,11 @@ do
 
     # Counter
     j=$(($i + 1))
-    ProgressBar $j ${#samples[@]} ||
-    
+    ProgressBar $j ${#samples[@]} || :
+
     sample="${samples[$i]}"
 
-    # Isolate sample specific block 
+    # Isolate sample specific block
     ppo_spl=$(awk -v spl_fd=$spl_fd -v sample="$sample" ' $spl_fd ~ sample' <<< "$ppo")
 
     # Output line
@@ -277,8 +278,10 @@ do
 
     done
 
-    echo -e "$myline" >> "$output"
+    mytable+="\n$myline"
 
 done
+
+echo -e "$mytable" >> "$output"
 
 exit
